@@ -12,10 +12,11 @@ protocol PhotoGallaryViewControllerProtocol: AnyObject {
 }
 
 final class PhotoGallaryViewController: UIViewController, PhotoGallaryViewControllerProtocol {
-    
-    public var presenter: PhotoGallaryPresenterProtocol!
-    
+
+    var presenter: PhotoGallaryPresenterProtocol!
+
     override public func viewDidLoad() -> () {
         super.viewDidLoad()
+
     }
 }

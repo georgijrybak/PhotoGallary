@@ -9,7 +9,7 @@ import UIKit
 
 final class PhotoGallaryBuilder {
     
-    public static func build() -> PhotoGallaryViewController {
+    static func build() -> PhotoGallaryViewController {
         let view = PhotoGallaryViewController()
         let presenter = PhotoGallaryPresenter(view: view)
         
