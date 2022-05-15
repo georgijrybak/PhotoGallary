@@ -8,7 +8,6 @@
 import UIKit
 
 final class PhotoGallaryBuilder {
-    
     static func build() -> PhotoGallaryViewController {
         let view = PhotoGallaryViewController()
         let presenter = PhotoGallaryPresenter(view: view)
@@ -17,5 +16,4 @@ final class PhotoGallaryBuilder {
         
         return view
     }
-    
 }

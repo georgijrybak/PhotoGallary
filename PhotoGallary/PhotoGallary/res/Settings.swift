@@ -6,7 +6,23 @@
 //
 
 import Foundation
+import UIKit
 
 class Settings {
-    static let shared = Settings()
+    enum Colors {
+        static let main = UIColor.white
+        static let fontColor = UIColor.white
+    }
+
+    enum Fonts {
+        static let appleSDGothicNeo = "AppleSDGothicNeo-UltraLight"
+    }
+
+    enum NotificationIdentifires {
+        static let safari = "openSafariWithURL"
+    }
+
+    enum NetworkLinks {
+        static let mainLink = "http://dev.bgsoft.biz/task/"
+    }
 }
