@@ -11,8 +11,11 @@ import UIKit
 protocol PhotoGallaryPresenterProtocol: AnyObject {
     init(view: PhotoGallaryViewControllerProtocol)
     func fetchCredits()
-    func fetchCollectionViewCellModel(collectionViewModel: [CreditModel], indexPath: Int) -> PhotoGallaryCellModel
+    func fetchCollectionViewCellModel(collectionViewModel: CreditModel) -> PhotoGallaryCellModel
     func fetchModelForCollectionView() -> [CreditModel]
+    func fetchTimerStarted()
+    func fetchTimerStopped()
+
 }
 
 final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
@@ -22,6 +25,8 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
     private let networkManager = NetworkManager()
 
     private var model = [CreditModel]()
+
+    private var timer = Timer()
     
     init(view: PhotoGallaryViewControllerProtocol) {
         self.view = view
@@ -34,7 +39,7 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
         )
     }
 
-//MARK: - Private Methods
+    //MARK: - Private Methods
     private func prepareModel(data: Credits) -> [CreditModel] {
         var models = [CreditModel]()
 
@@ -52,9 +57,6 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
             }
         }
 
-        models.sorted(by: { $0.userName < $1.userName }).forEach { model in
-            print(model.userName)
-        }
         return models.sorted(by: { $0.userName < $1.userName } )
     }
 
@@ -62,17 +64,22 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
         view?.openSafari(url: notification.object as! URL)
     }
 
-//MARK: - Protocol Methods
+    @objc private func moveNext() {
+        view?.moveToNextPhoto()
+    }
+
+
+    //MARK: - Protocol Methods
     func fetchCredits(){
         networkManager.fetchCredits { result in
             switch result {
             case .success(let data):
                 self.model = self.prepareModel(data: data )
                 self.view?.updateCollectionView()
-            case .failure(let error):
+            case .failure(_):
                 let alertModel = AlertModel(
                     title: "Opps",
-                    message: error.localizedDescription,
+                    message: "Can't load data",
                     actionTitle: "Try again",
                     type: .cantDownloadData
                 )
@@ -83,12 +90,12 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
         }
     }
 
-    func fetchCollectionViewCellModel(collectionViewModel: [CreditModel], indexPath: Int) -> PhotoGallaryCellModel {
+    func fetchCollectionViewCellModel(collectionViewModel: CreditModel) -> PhotoGallaryCellModel {
         let cellModel = PhotoGallaryCellModel(
-            imageURL: Settings.NetworkLinks.mainLink + collectionViewModel[indexPath].key + ".jpg",
-            userName: collectionViewModel[indexPath].userName,
-            photoURL: collectionViewModel[indexPath].photoURL,
-            userURL: collectionViewModel[indexPath].userURL
+            imageURL: Settings.NetworkLinks.mainLink + collectionViewModel.key + ".jpg",
+            userName: collectionViewModel.userName,
+            photoURL: collectionViewModel.photoURL,
+            userURL: collectionViewModel.userURL
         )
         return cellModel
     }
@@ -97,4 +104,18 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
         return model
     }
 
+    func fetchTimerStarted() {
+        timer.invalidate()
+        timer = Timer.scheduledTimer(
+            timeInterval: 5,
+            target: self,
+            selector: #selector(moveNext),
+            userInfo: nil,
+            repeats: true
+        )
+    }
+
+    func fetchTimerStopped() {
+        timer.invalidate()
+    }
 }

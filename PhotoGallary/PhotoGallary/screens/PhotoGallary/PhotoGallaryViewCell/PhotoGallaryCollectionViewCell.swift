@@ -14,7 +14,7 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
     
     private var cellModel: PhotoGallaryCellModel? = nil
 
-    private let networkManager = NetworkManager()
+    private var representedIdentifier: String = ""
 
     //MARK: - Constants
     private enum Constants {
@@ -44,19 +44,20 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
     }()
 
      private lazy var imageView: UIImageView = {
-        let view = UIImageView()
+        var view = UIImageView()
         view.frame = outerView.bounds
         view.clipsToBounds = true
         view.layer.cornerRadius = Constants.imageCornerRadius
-        view.contentMode = .scaleAspectFill
+         view.contentMode = .scaleAspectFill
         let tap = UILongPressGestureRecognizer(
             target: self,
             action: #selector(imageViewTapped)
         )
         view.isUserInteractionEnabled = true
         view.addGestureRecognizer(tap)
+
         return view
-    }()
+     }()
 
     private lazy var userName: UILabel = {
         let label = UILabel()
@@ -74,6 +75,18 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         label.addGestureRecognizer(tap)
         return label
     }()
+
+    var image: UIImage? {
+        didSet {
+            activityIndicator.stopAnimating()
+            guard let image = image else { return }
+            self.imageView.image = image
+            UIView.animate(withDuration: 0.3) {
+                self.changeOpacity(value: 1)
+            }
+            self.imageView.image = image.crop(to: imageView.frame.size)
+        }
+    }
 
     //MARK: - Init
     override init(frame: CGRect) {
@@ -118,28 +131,30 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         userName.text = nil
     }
 
-    //MARK: - UpdateCell Method
+    //MARK: - Cell Methods
     func updateCellWith(model: PhotoGallaryCellModel) {
         activityIndicator.startAnimating()
 
-        cellModel = model
-
-        let URL = URL(string: model.imageURL)
-
         changeOpacity(value: 0)
 
+        cellModel = model
         userName.text = model.userName
+    }
 
-        networkManager.downloadImage(url: URL!) { image in
+    func clearImage() {
+        imageView.image = nil
+    }
 
-            self.imageView.image = image
+    func setImage(image: UIImage) {
+        self.image = image
+    }
 
-            self.activityIndicator.stopAnimating()
+    func getCellRepresentedIdentifier() -> String {
+        return representedIdentifier
+    }
 
-            UIView.animate(withDuration: 0.3) {
-                self.changeOpacity(value: 1)
-            }
-        }
+    func setCellRepresentedIdentifier(_ identifier: String) {
+        representedIdentifier = identifier
     }
 
     //MARK: - Private Methods

@@ -11,9 +11,8 @@ class CacheManager {
 
     private var imageCache = NSCache<NSString, UIImage>()
 
-    func chechCachedImage(key: URL) -> UIImage? {
+    func checkCachedImage(key: URL) -> UIImage? {
         guard let cachedImage = imageCache.object(forKey: key.absoluteString as NSString) else { return nil }
-
         return cachedImage
     }
 

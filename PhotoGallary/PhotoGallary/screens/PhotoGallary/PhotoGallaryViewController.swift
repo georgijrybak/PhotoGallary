@@ -10,15 +10,22 @@ import SnapKit
 import SafariServices
 
 
+extension CreditModel: InfiniteScollingData {}
+
 protocol PhotoGallaryViewControllerProtocol: AnyObject {
     func openSafari(url: URL)
     func updateCollectionView()
     func showAlert(alertModel: AlertModel)
+    func moveToNextPhoto()
 }
 
 final class PhotoGallaryViewController: UIViewController {
 
     var presenter: PhotoGallaryPresenterProtocol!
+
+    let networker = NetworkManager()
+
+    var infiniteScrollingBehaviour: InfiniteScrollingBehaviour!
 
 //MARK: - Constants
     private enum Constants {
@@ -35,6 +42,7 @@ final class PhotoGallaryViewController: UIViewController {
             frame: .zero,
             collectionViewLayout: layout
         )
+        view.collectionViewLayout = layout
         view.showsHorizontalScrollIndicator = true
         view.showsVerticalScrollIndicator = false
         view.register(
@@ -42,7 +50,8 @@ final class PhotoGallaryViewController: UIViewController {
             forCellWithReuseIdentifier: PhotoGallaryCollectionViewCell.identifier
         )
         view.isPagingEnabled = true
-        
+        view.backgroundColor = .clear
+        view.allowsSelection = true
         return view
     }()
 
@@ -58,70 +67,64 @@ final class PhotoGallaryViewController: UIViewController {
 //MARK: - Setuping Views
     private func setupViews() {
         navigationController?.navigationBar.isHidden = true
+
         view.backgroundColor = Settings.Colors.main
         view.addSubview(collectionView)
-
-        collectionView.delegate = self
-        collectionView.dataSource = self
-        collectionView.backgroundColor = .clear
-        collectionView.allowsSelection = true
     }
 
 //MARK: - Layout
     private func setupLayout() {
         collectionView.snp.makeConstraints { make in
-            make.left.right.equalToSuperview()
+            make.left.right.equalToSuperview().inset(Constants.inset)
             make.top.bottom.equalTo(view.safeAreaLayoutGuide).inset(Constants.inset * 2)
         }
     }
 
 //MARK: - Private methods
-    private func calculateTransforms(with offset:CGPoint) {
-        for indexPath in collectionView.indexPathsForVisibleItems {
-            if let cell = collectionView.cellForItem(at: indexPath) {
-                let halfWidth = cell.contentView.frame.size.width / 2.0
-                let realCenter = collectionView.convert(cell.center, to: collectionView.superview)
-                let diff = abs(halfWidth - realCenter.x)
-                let scale = 1.0 - diff / 2000.0
-                let scaleTransform = CGAffineTransform.init(scaleX: scale, y: scale)
-                cell.transform = scaleTransform
-                cell.alpha = scale
-            }
-        }
-    }
 }
 
 //MARK: - CollectionView methods
-extension PhotoGallaryViewController: UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
-    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-        return presenter.fetchModelForCollectionView().count
+extension PhotoGallaryViewController: InfiniteScollingData, InfiniteScrollingBehaviourDelegate {
+
+    func didBeginScrolling(inInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) {
+        presenter.fetchTimerStopped()
     }
 
-    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+    func didEndScrolling(inInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) {
+        presenter.fetchTimerStarted()
+    }
 
+    func configuredCell(forItemAtIndexPath indexPath: IndexPath, originalIndex: Int, andData data: InfiniteScollingData, forInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) -> UICollectionViewCell {
         guard let cell = collectionView.dequeueReusableCell(
-            withReuseIdentifier: PhotoGallaryCollectionViewCell.identifier,
-            for: indexPath
-        ) as? PhotoGallaryCollectionViewCell else { return UICollectionViewCell() }
+                   withReuseIdentifier: PhotoGallaryCollectionViewCell.identifier,
+                   for: indexPath
+               ) as? PhotoGallaryCollectionViewCell else { return UICollectionViewCell() }
 
-        let cellModel = presenter.fetchCollectionViewCellModel(
-            collectionViewModel: presenter.fetchModelForCollectionView(),
-            indexPath: indexPath.item
-        )
-        cell.updateCellWith(model: cellModel)
+        if let model = data as? CreditModel {
+            cell.clearImage()
+
+            let cellModel = presenter.fetchCollectionViewCellModel(collectionViewModel: model)
+
+            cell.updateCellWith(model: cellModel)
+
+            let URL = URL(string: cellModel.imageURL)
+
+            let representedIdentifier = model.userName
+
+            cell.setCellRepresentedIdentifier(representedIdentifier)
+
+            networker.downloadImage(url: URL!, size: cell.frame.size) {[weak self] image in
+                guard let self = self else { return }
+                DispatchQueue.main.async {
+                    if cell.getCellRepresentedIdentifier() == representedIdentifier {
+                        cell.setImage(image: image)
+                        self.presenter.fetchTimerStarted()
+                    }
+                }
+            }
+        }
+
         return cell
-    }
-
-    func collectionView(
-        _ collectionView: UICollectionView,
-        layout collectionViewLayout: UICollectionViewLayout,
-        sizeForItemAt indexPath: IndexPath
-    ) -> CGSize {
-        return CGSize(width: collectionView.bounds.width, height: collectionView.bounds.height)
-    }
-
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        calculateTransforms(with:scrollView.contentOffset)
     }
 }
 
@@ -145,12 +148,29 @@ extension PhotoGallaryViewController: PhotoGallaryViewControllerProtocol {
 
     func updateCollectionView() {
         DispatchQueue.main.async {
-            self.collectionView.reloadData()
+            if let _ = self.infiniteScrollingBehaviour {}
+            else {
+                let configuration = CollectionViewConfiguration(
+                    layoutType: .numberOfCellOnScreen(1),
+                    scrollingDirection: .horizontal
+                )
+                self.infiniteScrollingBehaviour = InfiniteScrollingBehaviour(
+                    withCollectionView: self.collectionView,
+                    andData: self.presenter.fetchModelForCollectionView(),
+                    delegate: self,
+                    configuration: configuration
+                )
+            }
         }
     }
 
     func openSafari(url: URL) {
         let svc = SFSafariViewController(url: url)
         present(svc, animated: true, completion: nil)
+        presenter.fetchTimerStopped()
+    }
+
+    func moveToNextPhoto() {
+        collectionView.scrollToNextItem()
     }
 }

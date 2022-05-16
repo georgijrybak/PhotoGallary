@@ -16,9 +16,9 @@ class NetworkManager {
     let cacheManager = CacheManager()
 
     //MARK: - Manager Methods
-    func downloadImage(url: URL, completion: @escaping (UIImage?) -> Void) {
+    func downloadImage(url: URL, size: CGSize, completion: @escaping (UIImage) -> Void) {
 
-        if let cachedImage = cacheManager.chechCachedImage(key: url) {
+        if let cachedImage = cacheManager.checkCachedImage(key: url) {
             completion(cachedImage)
         } else {
             let request = URLRequest(
@@ -34,20 +34,20 @@ class NetworkManager {
                       let `self` = self
                 else {
                     DispatchQueue.main.async {
-                        completion(UIImage(named: "imageIsNotAvaiable"))
+                        guard let image = UIImage(named: "imageIsNotAvaiable") else { return }
+                        completion(image)
                     }
                     return
                 }
 
                 guard
-                    let image = UIImage(data: data!),
-                    let compressedImage = image.compressTo(1)
+                    let image = UIImage(data: data!)
                 else { return }
 
-                self.cacheManager.cacheImage(image: compressedImage, key: url)
+                self.cacheManager.cacheImage(image: image.crop(to: size), key: url)
 
                 DispatchQueue.main.async {
-                    completion(compressedImage)
+                    completion(image.crop(to: size))
                 }
             }
             dataTask.resume()

@@ -5,7 +5,6 @@
 //  Created by Георгий Рыбак on 13.05.22.
 //
 
-import Foundation
 import UIKit
 
 class Settings {
