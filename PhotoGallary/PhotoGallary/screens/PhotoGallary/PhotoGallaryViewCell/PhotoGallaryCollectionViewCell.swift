@@ -22,7 +22,7 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         static let shadowOpacity: Float = 1
         static let shadowRadius: CGFloat = 8
         static let imageCornerRadius: CGFloat = 25
-        static let maxFontSize: CGFloat = 60
+        static let maxFontSize: CGFloat = 40
     }
     //MARK: - UI Property
     private let activityIndicator: UIActivityIndicatorView = {
@@ -97,6 +97,8 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         contentView.addSubviews([outerView, activityIndicator, userName])
 
         outerView.addSubview(imageView)
+
+        changeOpacity(value: 0)
     }
 
     required init?(coder: NSCoder) {
@@ -119,7 +121,6 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         }
         userName.snp.makeConstraints { make in
             make.left.right.bottom.equalTo(outerView).inset(Constants.inset * 2)
-            make.height.equalTo(self.contentView.frame.width / 7)
         }
     }
 
@@ -133,20 +134,11 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
 
     //MARK: - Cell Methods
     func updateCellWith(model: PhotoGallaryCellModel) {
-        activityIndicator.startAnimating()
-
         changeOpacity(value: 0)
 
         cellModel = model
         userName.text = model.userName
-    }
-
-    func clearImage() {
-        imageView.image = nil
-    }
-
-    func setImage(image: UIImage) {
-        self.image = image
+        image = model.image
     }
 
     func getCellRepresentedIdentifier() -> String {
@@ -155,6 +147,10 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
 
     func setCellRepresentedIdentifier(_ identifier: String) {
         representedIdentifier = identifier
+    }
+
+    func startActivityIndicator() {
+        activityIndicator.startAnimating()
     }
 
     //MARK: - Private Methods
@@ -167,12 +163,18 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
     @objc private func userNameTapped() {
         guard let cellModel = cellModel, let url = URL(string: cellModel.userURL) else { return }
 
-        NotificationCenter.default.post(name: Notification.Name("openSafariWithURL"), object: url)
+        NotificationCenter.default.post(
+            name: Notification.Name("openSafariWithURL"),
+            object: url
+        )
     }
 
     @objc private func imageViewTapped() {
         guard let cellModel = cellModel, let url = URL(string: cellModel.photoURL) else { return }
 
-        NotificationCenter.default.post(name: Notification.Name("openSafariWithURL"), object: url)
+        NotificationCenter.default.post(
+            name: Notification.Name("openSafariWithURL"),
+            object: url
+        )
     }
 }

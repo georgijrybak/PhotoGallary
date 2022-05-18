@@ -7,7 +7,12 @@
 
 import UIKit
 
-class NetworkManager {
+protocol NetworkManagerProtocol {
+    func downloadImage(url: URL, size: CGSize, completion: @escaping (UIImage) -> Void)
+    func fetchCredits(completion: @escaping (Result<Credits, Error>) -> Void)
+}
+
+class NetworkManager: NetworkManagerProtocol {
     enum FetcherError: Error {
         case invalidURL
         case missingData
@@ -44,7 +49,9 @@ class NetworkManager {
                     let image = UIImage(data: data!)
                 else { return }
 
-                self.cacheManager.cacheImage(image: image.crop(to: size), key: url)
+//                self.cacheManager.cacheImage(image: image.crop(to: size), key: url)
+                self.cacheManager.cacheImage(image: image, key: url)
+
 
                 DispatchQueue.main.async {
                     completion(image.crop(to: size))

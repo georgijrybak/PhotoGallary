@@ -5,24 +5,23 @@
 //  Created by Георгий Рыбак on 13.05.22.
 //
 
-import Foundation
 import UIKit
+import Network
 
 protocol PhotoGallaryPresenterProtocol: AnyObject {
     init(view: PhotoGallaryViewControllerProtocol)
     func fetchCredits()
-    func fetchCollectionViewCellModel(collectionViewModel: CreditModel) -> PhotoGallaryCellModel
+    func fetchCollectionViewCellModel(request: RequestCellModel, completion: @escaping (PhotoGallaryCellModel) -> Void)
     func fetchModelForCollectionView() -> [CreditModel]
     func fetchTimerStarted()
     func fetchTimerStopped()
-
 }
 
-final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
+final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckManagerDelegate {
 
     private weak var view: PhotoGallaryViewControllerProtocol?
 
-    private let networkManager = NetworkManager()
+    var networkManager: NetworkManagerProtocol!
 
     private var model = [CreditModel]()
 
@@ -30,6 +29,7 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
     
     init(view: PhotoGallaryViewControllerProtocol) {
         self.view = view
+        NetworkCheckManager.shared.delegate = self
 
         NotificationCenter.default.addObserver(
             self,
@@ -57,7 +57,11 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
             }
         }
 
-        return models.sorted(by: { $0.userName < $1.userName } )
+        models.sort(by: { $0.userName < $1.userName })
+        models.append(models[0])
+        models.insert(models[models.count - 2], at: 0)
+
+        return models
     }
 
     @objc private func methodOfReceivedNotification(notification: Notification) {
@@ -67,7 +71,6 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
     @objc private func moveNext() {
         view?.moveToNextPhoto()
     }
-
 
     //MARK: - Protocol Methods
     func fetchCredits(){
@@ -90,14 +93,21 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
         }
     }
 
-    func fetchCollectionViewCellModel(collectionViewModel: CreditModel) -> PhotoGallaryCellModel {
-        let cellModel = PhotoGallaryCellModel(
-            imageURL: Settings.NetworkLinks.mainLink + collectionViewModel.key + ".jpg",
-            userName: collectionViewModel.userName,
-            photoURL: collectionViewModel.photoURL,
-            userURL: collectionViewModel.userURL
-        )
-        return cellModel
+    func fetchCollectionViewCellModel(request: RequestCellModel, completion: @escaping (PhotoGallaryCellModel) -> Void)  {
+
+        let url = URL(string: Settings.NetworkLinks.mainLink + model[request.indexPath].key + ".jpg")
+
+        networkManager.downloadImage(url: url!, size: request.size) { [weak self] image in
+            guard let self = self else { return }
+            let cellModel = PhotoGallaryCellModel(
+                userName: self.model[request.indexPath].userName,
+                photoURL: self.model[request.indexPath].photoURL,
+                userURL: self.model[request.indexPath].userURL,
+                image: image,
+                id: request.id
+            )
+            completion(cellModel)
+        }
     }
 
     func fetchModelForCollectionView() -> [CreditModel] {
@@ -118,4 +128,20 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol {
     func fetchTimerStopped() {
         timer.invalidate()
     }
+
+    func connectionStatus(isConnected: Bool) {
+        if !isConnected {
+            DispatchQueue.main.async {
+                self.view?.showAlert(
+                    alertModel: AlertModel(
+                        title: "Opps",
+                        message: "Device is not connected to the internet",
+                        actionTitle: "Open settings",
+                        type: .noItnernet
+                    )
+                )
+            }
+        }
+    }
 }
+

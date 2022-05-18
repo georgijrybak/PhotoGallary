@@ -8,6 +8,9 @@
 import UIKit
 
 class Settings {
+
+    static let shared = Settings()
+    
     enum Colors {
         static let main = UIColor.white
         static let fontColor = UIColor.white

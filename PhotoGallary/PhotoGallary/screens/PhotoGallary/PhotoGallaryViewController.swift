@@ -9,9 +9,6 @@ import UIKit
 import SnapKit
 import SafariServices
 
-
-extension CreditModel: InfiniteScollingData {}
-
 protocol PhotoGallaryViewControllerProtocol: AnyObject {
     func openSafari(url: URL)
     func updateCollectionView()
@@ -23,9 +20,12 @@ final class PhotoGallaryViewController: UIViewController {
 
     var presenter: PhotoGallaryPresenterProtocol!
 
-    let networker = NetworkManager()
+    private var prevIndexPathAtCenter: IndexPath?
 
-    var infiniteScrollingBehaviour: InfiniteScrollingBehaviour!
+    private var currentIndexPath: IndexPath? {
+        let center = view.convert(collectionView.center, to: collectionView)
+        return collectionView.indexPathForItem(at: center)
+    }
 
 //MARK: - Constants
     private enum Constants {
@@ -38,11 +38,11 @@ final class PhotoGallaryViewController: UIViewController {
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .horizontal
         layout.minimumLineSpacing = Constants.collectionViewMinimumLineSpacing
+        layout.minimumInteritemSpacing = Constants.collectionViewMinimumLineSpacing
         let view = UICollectionView(
             frame: .zero,
             collectionViewLayout: layout
         )
-        view.collectionViewLayout = layout
         view.showsHorizontalScrollIndicator = true
         view.showsVerticalScrollIndicator = false
         view.register(
@@ -52,6 +52,7 @@ final class PhotoGallaryViewController: UIViewController {
         view.isPagingEnabled = true
         view.backgroundColor = .clear
         view.allowsSelection = true
+
         return view
     }()
 
@@ -64,15 +65,41 @@ final class PhotoGallaryViewController: UIViewController {
         presenter.fetchCredits()
     }
 
+//MARK: - Layout
+    override func willTransition(to newCollection: UITraitCollection, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.willTransition(to: newCollection, with: coordinator)
+
+        if let indexAtCenter = currentIndexPath {
+            prevIndexPathAtCenter = indexAtCenter
+        }
+        collectionView.collectionViewLayout.invalidateLayout()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        collectionView.collectionViewLayout.invalidateLayout()
+
+    }
+
 //MARK: - Setuping Views
     private func setupViews() {
         navigationController?.navigationBar.isHidden = true
 
         view.backgroundColor = Settings.Colors.main
         view.addSubview(collectionView)
+
+        collectionView.delegate = self
+        collectionView.dataSource = self
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(rotated),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
     }
 
-//MARK: - Layout
+//MARK: - Elements layout
     private func setupLayout() {
         collectionView.snp.makeConstraints { make in
             make.left.right.equalToSuperview().inset(Constants.inset)
@@ -81,55 +108,108 @@ final class PhotoGallaryViewController: UIViewController {
     }
 
 //MARK: - Private methods
+    private func calculateTransforms(with offset:CGPoint) {
+        for indexPath in collectionView.indexPathsForVisibleItems {
+            if let cell = collectionView.cellForItem(at: indexPath) {
+                let halfWidth = cell.contentView.frame.size.width / 2.0
+                let realCenter = collectionView.convert(cell.center, to: collectionView.superview)
+                let diff = abs(halfWidth - realCenter.x)
+                let scale = 1.0 - diff / 2000.0
+                let scaleTransform = CGAffineTransform.init(scaleX: scale, y: scale)
+                cell.transform = scaleTransform
+                cell.alpha = scale
+            }
+        }
+    }
+
+    @objc func rotated() {
+        if let indexAtCenter = currentIndexPath {
+            prevIndexPathAtCenter = indexAtCenter
+        }
+        collectionView.collectionViewLayout.invalidateLayout()
+    }
 }
 
 //MARK: - CollectionView methods
-extension PhotoGallaryViewController: InfiniteScollingData, InfiniteScrollingBehaviourDelegate {
-
-    func didBeginScrolling(inInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) {
-        presenter.fetchTimerStopped()
+extension PhotoGallaryViewController: UICollectionViewDelegate, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return presenter.fetchModelForCollectionView().count
     }
 
-    func didEndScrolling(inInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) {
-        presenter.fetchTimerStarted()
-    }
-
-    func configuredCell(forItemAtIndexPath indexPath: IndexPath, originalIndex: Int, andData data: InfiniteScollingData, forInfiniteScrollingBehaviour behaviour: InfiniteScrollingBehaviour) -> UICollectionViewCell {
+    func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         guard let cell = collectionView.dequeueReusableCell(
-                   withReuseIdentifier: PhotoGallaryCollectionViewCell.identifier,
-                   for: indexPath
-               ) as? PhotoGallaryCollectionViewCell else { return UICollectionViewCell() }
+            withReuseIdentifier: PhotoGallaryCollectionViewCell.identifier,
+            for: indexPath
+        ) as? PhotoGallaryCollectionViewCell else { return UICollectionViewCell() }
 
-        if let model = data as? CreditModel {
-            cell.clearImage()
+        let representedIdentifier = "cellID=\(indexPath.item)"
 
-            let cellModel = presenter.fetchCollectionViewCellModel(collectionViewModel: model)
+        cell.setCellRepresentedIdentifier(representedIdentifier)
 
-            cell.updateCellWith(model: cellModel)
+        let request = RequestCellModel(
+            size: cell.frame.size,
+            indexPath: indexPath.item,
+            id: representedIdentifier
+        )
 
-            let URL = URL(string: cellModel.imageURL)
+        cell.setCellRepresentedIdentifier(representedIdentifier)
+        cell.startActivityIndicator()
 
-            let representedIdentifier = model.userName
+        presenter.fetchCollectionViewCellModel(request: request) { [weak self] model in
+            guard let self = self else { return }
 
-            cell.setCellRepresentedIdentifier(representedIdentifier)
-
-            networker.downloadImage(url: URL!, size: cell.frame.size) {[weak self] image in
-                guard let self = self else { return }
-                DispatchQueue.main.async {
-                    if cell.getCellRepresentedIdentifier() == representedIdentifier {
-                        cell.setImage(image: image)
-                        self.presenter.fetchTimerStarted()
-                    }
+            DispatchQueue.main.async {
+                if cell.getCellRepresentedIdentifier() == model.id {
+                    cell.updateCellWith(model: model)
+                    self.presenter.fetchTimerStarted()
                 }
             }
         }
 
         return cell
     }
+
+    func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+        return CGSize(width: collectionView.bounds.width, height: collectionView.bounds.height)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, targetContentOffsetForProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
+
+        guard let oldCenter = prevIndexPathAtCenter else { return proposedContentOffset }
+
+        let attrs =  collectionView.layoutAttributesForItem(at: oldCenter)
+
+        let newOriginForOldIndex = attrs?.frame.origin
+
+        return newOriginForOldIndex ?? proposedContentOffset
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        calculateTransforms(with:scrollView.contentOffset)
+    }
+
+    func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {
+        presenter.fetchTimerStopped()
+    }
+
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        let pageFloat = (scrollView.contentOffset.x / scrollView.frame.size.width)
+        let pageInt = Int(round(pageFloat))
+
+        switch pageInt {
+        case 0:
+            collectionView.scrollToItem(at: [0, presenter.fetchModelForCollectionView().count - 2], at: .left, animated: false)
+        case presenter.fetchModelForCollectionView().count - 1:
+            collectionView.scrollToItem(at: [0, 1], at: .left, animated: false)
+        default:
+            break
+        }
+    }
 }
 
 //MARK: - Protocol methods
 extension PhotoGallaryViewController: PhotoGallaryViewControllerProtocol {
+
     func showAlert(alertModel: AlertModel) {
         let alert = AlertManager.shared.getAlert(title: alertModel.title, message: alertModel.message)
 
@@ -140,27 +220,23 @@ extension PhotoGallaryViewController: PhotoGallaryViewControllerProtocol {
             }
             alert.addAction(action)
         case .noItnernet:
-            //туть обработка когда нет интернета
-            print("no inet")
+            let action = UIAlertAction(title: alertModel.actionTitle, style: .default) { _ in
+                if let url = URL.init(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+                }
+            }
+            alert.addAction(action)
         }
+
+        presenter.fetchTimerStopped()
+
         present(alert, animated: true)
     }
 
     func updateCollectionView() {
         DispatchQueue.main.async {
-            if let _ = self.infiniteScrollingBehaviour {}
-            else {
-                let configuration = CollectionViewConfiguration(
-                    layoutType: .numberOfCellOnScreen(1),
-                    scrollingDirection: .horizontal
-                )
-                self.infiniteScrollingBehaviour = InfiniteScrollingBehaviour(
-                    withCollectionView: self.collectionView,
-                    andData: self.presenter.fetchModelForCollectionView(),
-                    delegate: self,
-                    configuration: configuration
-                )
-            }
+            self.collectionView.reloadData()
+            self.collectionView.scrollToItem(at: IndexPath(item: 1, section: 0), at: .left, animated: false)
         }
     }
 
