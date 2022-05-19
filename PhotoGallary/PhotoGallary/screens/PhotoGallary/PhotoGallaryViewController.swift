@@ -12,8 +12,10 @@ import SafariServices
 protocol PhotoGallaryViewControllerProtocol: AnyObject {
     func openSafari(url: URL)
     func updateCollectionView()
-    func showAlert(alertModel: AlertModel)
+    func showAlert(_ alert: UIAlertController)
     func moveToNextPhoto()
+    func openSettings()
+    func deleteCell()
 }
 
 final class PhotoGallaryViewController: UIViewController {
@@ -161,6 +163,7 @@ extension PhotoGallaryViewController: UICollectionViewDelegate, UICollectionView
             DispatchQueue.main.async {
                 if cell.getCellRepresentedIdentifier() == model.id {
                     cell.updateCellWith(model: model)
+
                     self.presenter.fetchTimerStarted()
                 }
             }
@@ -210,24 +213,7 @@ extension PhotoGallaryViewController: UICollectionViewDelegate, UICollectionView
 //MARK: - Protocol methods
 extension PhotoGallaryViewController: PhotoGallaryViewControllerProtocol {
 
-    func showAlert(alertModel: AlertModel) {
-        let alert = AlertManager.shared.getAlert(title: alertModel.title, message: alertModel.message)
-
-        switch alertModel.type {
-        case .cantDownloadData:
-            let action = UIAlertAction(title: alertModel.actionTitle, style: .default) { _ in
-                self.presenter.fetchCredits()
-            }
-            alert.addAction(action)
-        case .noItnernet:
-            let action = UIAlertAction(title: alertModel.actionTitle, style: .default) { _ in
-                if let url = URL.init(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
-                }
-            }
-            alert.addAction(action)
-        }
-
+    func showAlert(_ alert: UIAlertController) {
         presenter.fetchTimerStopped()
 
         present(alert, animated: true)
@@ -236,17 +222,36 @@ extension PhotoGallaryViewController: PhotoGallaryViewControllerProtocol {
     func updateCollectionView() {
         DispatchQueue.main.async {
             self.collectionView.reloadData()
+
             self.collectionView.scrollToItem(at: IndexPath(item: 1, section: 0), at: .left, animated: false)
         }
     }
 
     func openSafari(url: URL) {
         let svc = SFSafariViewController(url: url)
+
         present(svc, animated: true, completion: nil)
+
         presenter.fetchTimerStopped()
     }
 
     func moveToNextPhoto() {
         collectionView.scrollToNextItem()
+    }
+
+    func openSettings() {
+        if let url = URL.init(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+    }
+
+    func deleteCell() {
+        if let currentIndexPath = currentIndexPath {
+            collectionView.deleteItems(at: [currentIndexPath])
+
+            presenter.deleteCell(indexPath: currentIndexPath.item)
+
+            collectionView.reloadData()
+        }
     }
 }

@@ -14,3 +14,9 @@ struct PhotoGallaryCellModel {
     var image: UIImage
     var id: String
 }
+
+struct RequestCellModel {
+    var size: CGSize
+    var indexPath: Int
+    var id: String
+}

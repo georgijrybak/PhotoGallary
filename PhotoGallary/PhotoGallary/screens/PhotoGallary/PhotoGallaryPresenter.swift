@@ -15,6 +15,7 @@ protocol PhotoGallaryPresenterProtocol: AnyObject {
     func fetchModelForCollectionView() -> [CreditModel]
     func fetchTimerStarted()
     func fetchTimerStopped()
+    func deleteCell(indexPath: Int)
 }
 
 final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckManagerDelegate {
@@ -33,8 +34,8 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
 
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(self.methodOfReceivedNotification(notification:)),
-            name: Notification.Name(Settings.NotificationIdentifires.safari),
+            selector: #selector(self.receiveNotification(_:)),
+            name: Notification.Name(Settings.NotificationIdentifires.currentCell),
             object: nil
         )
     }
@@ -64,8 +65,44 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
         return models
     }
 
-    @objc private func methodOfReceivedNotification(notification: Notification) {
-        view?.openSafari(url: notification.object as! URL)
+    @objc private func receiveNotification(_ notification: Notification) {
+        if
+            let userURLString = notification.userInfo?["userURL"] as? String,
+            let userURL = URL(string: userURLString),
+            let photoURLString = notification.userInfo?["photoURL"] as? String,
+            let photoURL = URL(string: photoURLString)
+        {
+            DispatchQueue.main.async {
+                if let view = self.view {
+                    let firstActionModel = AlertActionModel(
+                        title: "Оpen user in Safari",
+                        style: .default,
+                        completion: {view.openSafari(url: userURL)}
+                    )
+
+                    let secondActionModel = AlertActionModel(
+                        title: "Оpen photo in Safari",
+                        style: .default,
+                        completion: {view.openSafari(url: photoURL)}
+                    )
+
+                    let thirdActionModel = AlertActionModel(
+                        title: "Delete",
+                        style: .destructive,
+                        completion: {view.deleteCell()}
+                    )
+
+                    let alert = AlertManager.shared.getAlert(
+                        title: nil,
+                        message: nil,
+                        preferredStyle: .actionSheet,
+                        actionModels: [firstActionModel, secondActionModel, thirdActionModel]
+                    )
+
+                    view.showAlert(alert)
+                }
+            }
+        }
     }
 
     @objc private func moveNext() {
@@ -80,14 +117,23 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
                 self.model = self.prepareModel(data: data )
                 self.view?.updateCollectionView()
             case .failure(_):
-                let alertModel = AlertModel(
-                    title: "Opps",
-                    message: "Can't load data",
-                    actionTitle: "Try again",
-                    type: .cantDownloadData
-                )
                 DispatchQueue.main.async {
-                    self.view?.showAlert(alertModel: alertModel)
+                    if let view = self.view {
+                        let actionModel = AlertActionModel(
+                            title: "Try again",
+                            style: .default,
+                            completion: { self.fetchCredits() }
+                        )
+
+                        let alert = AlertManager.shared.getAlert(
+                            title: "Opps",
+                            message: "Can't load data",
+                            preferredStyle: .alert,
+                            actionModels: [actionModel]
+                        )
+
+                        view.showAlert(alert)
+                    }
                 }
             }
         }
@@ -95,9 +141,11 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
 
     func fetchCollectionViewCellModel(request: RequestCellModel, completion: @escaping (PhotoGallaryCellModel) -> Void)  {
 
-        let url = URL(string: Settings.NetworkLinks.mainLink + model[request.indexPath].key + ".jpg")
+        guard let url = URL(
+            string: Settings.NetworkLinks.mainLink + model[request.indexPath].key + ".jpg"
+        ) else { return }
 
-        networkManager.downloadImage(url: url!, size: request.size) { [weak self] image in
+        networkManager.downloadImage(url: url, size: request.size) { [weak self] image in
             guard let self = self else { return }
             let cellModel = PhotoGallaryCellModel(
                 userName: self.model[request.indexPath].userName,
@@ -106,6 +154,7 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
                 image: image,
                 id: request.id
             )
+
             completion(cellModel)
         }
     }
@@ -132,15 +181,37 @@ final class PhotoGallaryPresenter: PhotoGallaryPresenterProtocol, NetworkCheckMa
     func connectionStatus(isConnected: Bool) {
         if !isConnected {
             DispatchQueue.main.async {
-                self.view?.showAlert(
-                    alertModel: AlertModel(
+                if let view = self.view {
+                    let actionModel = AlertActionModel(
+                        title: "Open settings",
+                        style: .default,
+                        completion: { view.openSettings() }
+                    )
+
+                    let alert = AlertManager.shared.getAlert(
                         title: "Opps",
                         message: "Device is not connected to the internet",
-                        actionTitle: "Open settings",
-                        type: .noItnernet
+                        preferredStyle: .alert,
+                        actionModels: [actionModel]
                     )
-                )
+
+                    view.showAlert(alert)
+                }
             }
+        }
+    }
+
+    func deleteCell(indexPath: Int) {
+        model.remove(at: indexPath)
+
+        switch indexPath {
+        case 1:
+            model.remove(at: model.count - 1)
+            model.insert(model[1], at: model.count)
+        case model.count - 1:
+            model.remove(at: 0)
+            model.insert(model[model.count - 2], at: 0)
+        default: break
         }
     }
 }

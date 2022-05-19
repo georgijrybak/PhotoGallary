@@ -49,13 +49,9 @@ class NetworkManager: NetworkManagerProtocol {
                     let image = UIImage(data: data!)
                 else { return }
 
-//                self.cacheManager.cacheImage(image: image.crop(to: size), key: url)
-                self.cacheManager.cacheImage(image: image, key: url)
+                self.cacheManager.cacheImage(image: image.crop(to: size), key: url)
 
-
-                DispatchQueue.main.async {
-                    completion(image.crop(to: size))
-                }
+                completion(image.crop(to: size))
             }
             dataTask.resume()
         }
@@ -85,7 +81,6 @@ class NetworkManager: NetworkManagerProtocol {
             } catch {
                 completion(.failure(error))
             }
-
         }.resume()
     }
 }

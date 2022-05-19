@@ -11,5 +11,8 @@ struct AlertModel {
     var title: String
     var message: String
     var actionTitle: String
+    var style: UIAlertController.Style
     var type: AlertManager.Alerts
+    var data: [String: String]?
+    var actions: [AlertActionModel]
 }

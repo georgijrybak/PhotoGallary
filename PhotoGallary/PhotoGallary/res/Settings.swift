@@ -10,6 +10,8 @@ import UIKit
 class Settings {
 
     static let shared = Settings()
+
+    private init() {}
     
     enum Colors {
         static let main = UIColor.white
@@ -21,7 +23,7 @@ class Settings {
     }
 
     enum NotificationIdentifires {
-        static let safari = "openSafariWithURL"
+        static let currentCell = "openAlertOfCurrentCell"
     }
 
     enum NetworkLinks {

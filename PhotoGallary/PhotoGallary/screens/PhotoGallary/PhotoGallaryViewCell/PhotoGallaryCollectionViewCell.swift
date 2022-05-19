@@ -67,12 +67,6 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.2
         label.numberOfLines = 0
-        let tap = UITapGestureRecognizer(
-            target: self,
-            action: #selector(userNameTapped)
-        )
-        label.isUserInteractionEnabled = true
-        label.addGestureRecognizer(tap)
         return label
     }()
 
@@ -84,7 +78,7 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
             UIView.animate(withDuration: 0.3) {
                 self.changeOpacity(value: 1)
             }
-            self.imageView.image = image.crop(to: imageView.frame.size)
+            self.imageView.image = image
         }
     }
 
@@ -137,7 +131,9 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         changeOpacity(value: 0)
 
         cellModel = model
+
         userName.text = model.userName
+        
         image = model.image
     }
 
@@ -160,21 +156,15 @@ class PhotoGallaryCollectionViewCell: UICollectionViewCell {
         }
     }
 
-    @objc private func userNameTapped() {
-        guard let cellModel = cellModel, let url = URL(string: cellModel.userURL) else { return }
-
-        NotificationCenter.default.post(
-            name: Notification.Name("openSafariWithURL"),
-            object: url
-        )
-    }
-
     @objc private func imageViewTapped() {
-        guard let cellModel = cellModel, let url = URL(string: cellModel.photoURL) else { return }
+        guard let cellModel = cellModel else { return }
+
+        let dataDict: [String: String] = ["photoURL": cellModel.photoURL, "userURL": cellModel.userURL]
 
         NotificationCenter.default.post(
-            name: Notification.Name("openSafariWithURL"),
-            object: url
+            name: Notification.Name(Settings.NotificationIdentifires.currentCell),
+            object: nil,
+            userInfo: dataDict
         )
     }
 }
